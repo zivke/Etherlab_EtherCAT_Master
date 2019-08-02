@@ -476,6 +476,12 @@ int ecw_preemptive_slave_sdo_count(int master_id, int slave_index)
     return -1;
   }
 
+  if (ecrt_master_slave_dictionary_upload(master, slave_index) != 0) {
+    syslog(LOG_ERR, "Error, could not upload dictionary for slave %d",
+           slave_index);
+    return -1;
+  }
+
   ec_slave_info_t *slave_info = malloc(sizeof(ec_slave_info_t));
   if (ecrt_master_get_slave(master, slave_index, slave_info) != 0) {
     syslog(LOG_ERR, "Error, could not read slave configuration for slave %d",

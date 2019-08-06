@@ -414,7 +414,7 @@ ec_master_info_t* ecw_preemptive_master_info(int master_id)
   ec_master_info_t *info = calloc(1, sizeof(ec_master_info_t));
   info->scan_busy = 1;
   info->link_up = 0;
-  while (info->link_up == 0 && info->scan_busy && (timeout-- > 0)) {
+  while ((info->link_up == 0 || info->scan_busy == 1) && (timeout-- > 0)) {
     ecrt_master(master, info);
     usleep(1000);
   }
@@ -422,7 +422,14 @@ ec_master_info_t* ecw_preemptive_master_info(int master_id)
   ecrt_release_master(master);
 
   if (timeout <= 0) {
-    syslog(LOG_ERR, "ERROR, link_up or scan_busy timed out");
+    if (info->link_up == 0) {
+      syslog(LOG_ERR, "ERROR, link_up timed out");
+    }
+
+    if (info->scan_busy == 1) {
+      syslog(LOG_ERR, "ERROR, scan_busy timed out");
+    }
+
     return NULL;
   }
 
@@ -606,13 +613,21 @@ Ethercat_Master_t *ecw_master_init(int master_id, FILE *logfile)
   int timeout = 1000;
   ec_master_state_t state;
   state.link_up = 0;
-  while (state.link_up == 0 && (timeout-- > 0)) {
+  state.scan_busy = 1;
+  while ((state.link_up == 0 || state.scan_busy == 1) && (timeout-- > 0)) {
     ecrt_master_state(master->master, &state);
     usleep(1000);
   }
 
   if (timeout <= 0) {
-    syslog(LOG_ERR, "ERROR, link_state timed out");
+    if (state.link_up == 0) {
+      syslog(LOG_ERR, "ERROR, link_state timed out");
+    }
+
+    if (state.scan_busy == 1) {
+      syslog(LOG_ERR, "ERROR, scan_busy timed out");
+    }
+
     ecrt_release_master(master->master);
     free(master);
     return NULL;
@@ -865,6 +880,11 @@ int ecw_master_start(Ethercat_Master_t *master)
     return -1;
   }
 
+  if (ecrt_master_setup_domain_memory(master->master) != 0) {
+    syslog(LOG_ERR, "Error: Cannot setup domain memory");
+    return -1;
+  }
+
   /* FIXME how can I get information about the error leading to no activation
    * of the master */
   if (ecrt_master_activate(master->master) < 0) {
@@ -877,6 +897,7 @@ int ecw_master_start(Ethercat_Master_t *master)
     syslog(
         LOG_ERR,
         "Error: Unable to get the process data pointer. Disable master again.");
+    ecrt_master_deactivate_slaves(master->master);
     ecrt_master_deactivate(master->master);
     return -1;
   }
@@ -891,6 +912,8 @@ int ecw_master_start(Ethercat_Master_t *master)
 int ecw_master_stop(Ethercat_Master_t *master)
 {
   /* FIXME Check if master is running */
+
+  ecrt_master_deactivate_slaves(master->master);
 
   /* The documentation of this function in ecrt.h is kind of misleading. It
    * states that this function shouldn't be called in real-time context. On the
@@ -963,6 +986,7 @@ int ecw_master_stop_cyclic(Ethercat_Master_t *master)
    * generated structures become invalid. */
   master->processdata = NULL;
   master->domain = NULL;
+  ecrt_master_deactivate_slaves(master->master);
   ecrt_master_deactivate(master->master);
 
   return 0;

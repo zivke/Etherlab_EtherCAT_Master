@@ -892,6 +892,7 @@ int ecw_master_start(Ethercat_Master_t *master)
     syslog(
         LOG_ERR,
         "Error: Unable to get the process data pointer. Disable master again.");
+    ecrt_master_deactivate_slaves(master->master);
     ecrt_master_deactivate(master->master);
     return -1;
   }
@@ -906,6 +907,8 @@ int ecw_master_start(Ethercat_Master_t *master)
 int ecw_master_stop(Ethercat_Master_t *master)
 {
   /* FIXME Check if master is running */
+
+  ecrt_master_deactivate_slaves(master->master);
 
   /* The documentation of this function in ecrt.h is kind of misleading. It
    * states that this function shouldn't be called in real-time context. On the
@@ -978,6 +981,7 @@ int ecw_master_stop_cyclic(Ethercat_Master_t *master)
    * generated structures become invalid. */
   master->processdata = NULL;
   master->domain = NULL;
+  ecrt_master_deactivate_slaves(master->master);
   ecrt_master_deactivate(master->master);
 
   return 0;

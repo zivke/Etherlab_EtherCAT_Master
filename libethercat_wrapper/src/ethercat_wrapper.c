@@ -880,6 +880,11 @@ int ecw_master_start(Ethercat_Master_t *master)
     return -1;
   }
 
+  if (ecrt_master_setup_domain_memory(master->master) != 0) {
+    syslog(LOG_ERR, "Error: Cannot setup domain memory");
+    return -1;
+  }
+
   /* FIXME how can I get information about the error leading to no activation
    * of the master */
   if (ecrt_master_activate(master->master) < 0) {
